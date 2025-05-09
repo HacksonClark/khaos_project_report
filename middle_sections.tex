@@ -1,3 +1,325 @@
-\section{Middle Sections}
+\section{Taxonomy}
 
-You can have as many middle sections as possible based on your organization of the report.
+We propose the following taxonomy as the foundation of our fault injection methodology, aiming to cover each layer of the hardware stack along with common operating system and virtualization faults. For hardware failures, we categorize faults based on relevant hardware components and identify several common failure modes for each, informed by studies on data-center hardware failures~\cite{Wang2017, intel2023mca}. For kernel and virtualization-related faults, we pinpoint vulnerable and essential operating system components and define their corresponding faults. We further expand this list to incorporate other failures which we classify as either regular or critical, such as failures in networking and peripheral devices.
+
+Although the root causes of the aforementioned failures vary across generations and architectures of software and hardware, from an operating system perspective, they either cause unexpected behavior in the relevant subsystem, ultimately exposing issues to user-space through system calls, or result in performance degradations or inconsistencies that affect the applications in service. Following this observation, we associate each identified failure mode with a group of system calls it can potentially affect, which guide the implementation of \textit{Khaos}.
+
+\subsection{Disk Failures}
+
+Disk failures, including those rooted in hard disk drives and solid state drives, have been reported to account for more than 80\% of failures in the data-centers of Baidu Inc.~\cite{Wang2017}. A more recent white paper on JD Cloud reported that disk failures constitute 32\% of all hardware failures observed in their cloud hosts~\cite{intel2023mca}.
+% Although this decline in numbers may be attributed to multiple factors, including architectural and functional differences in these data centers, variations in management and maintenance practices, discrepancies in failure collection and categorization, and advancements in storage technologies, 
+these numbers demonstrate that disk failures are, and will remain in the near future, a major source of hardware failures. With regard to the root cause, multiple disk components contribute to its failures. For example, hard disk drive failures can result from media errors like bad sectors, medium errors, and bad block table failures, leading to corruption of files or even file systems.
+
+\begin{table}[ht]
+\centering
+\caption{Disk Failure Modes and Their Impact}
+\label{disk_failures}
+\resizebox{\linewidth}{!}{
+\begin{tabular}{lll}
+\toprule
+Failure Mode & Impact & Relevant Syscalls \\
+\midrule
+Disk Unavailable & Reads/Writes fail & \texttt{open()}, \texttt{read()}, \texttt{write()}, \texttt{fsync()}, \texttt{ioctl()} \\
+Slow Disk & Latency increases & \texttt{fsync()}, \texttt{sync\_file\_range()} \\
+Corrupted Data & Mismatched reads/writes & Hook \texttt{read()} and inject bit flips \\
+Filesystem Errors & Filesystem unmounts unexpectedly & \texttt{mount()}, \texttt{statfs()}, \texttt{unlink()} \\
+I/O Errors (bad sectors) & Partial read/write failures with \texttt{EIO} errors & \texttt{read()}, \texttt{write()}, \texttt{fsync()}, \texttt{ioctl()} \\
+Disk Partition Corruption & Certain disk partitions become unreadable & \texttt{mount()}, \texttt{umount()}, \texttt{fdisk()} \\
+RAID Degraded Mode & Data redundancy is lost, performance drops & \texttt{ioctl()}, \texttt{read()}, \texttt{write()} \\
+SSD Wear-Leveling Issues & Increased latency, inconsistent read speeds & \texttt{sync\_file\_range()}, \texttt{fsync()} \\
+Disk Read-Only Mode & Writes are blocked, only reads allowed & \texttt{write()}, \texttt{truncate()}, \texttt{rename()} \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+The identified disk failures and their impact are shown in table~\ref{disk_failures}. Among the identified disk failures, the primary impact is the failure or unexpected behavior of I/O-related system calls, including \texttt{open()}, \texttt{read()}, \texttt{write()}, and \texttt{fsync()}, etc. Additionally, these failures may lead to performance degradation, resulting in prolonged execution and slowdown of I/O system calls. Furthermore, disk failures can cause permission or access errors related to file system status and file write permissions.
+
+\subsection{Memory Failures}
+
+Memory failures, encompassing both RAM and cache, represent a critical concern in data center reliability. These failures can manifest in various forms, impacting system stability and performance. A significant portion of memory errors are attributed to Dual In-line Memory Module Correctable Errors (DIMMCE) and Dual In-line Memory Module Uncorrectable Errors (DIMMUE). The criticality of these failures is underscored by research highlighting their potential to cause widespread system disruptions and data loss. For instance, Sridharan et al. (2010) discuss how hardware faults, including memory errors, can significantly compromise the reliability of cloud computing platforms. Opperman et al. (2016) further emphasize the importance of understanding memory errors by providing an in-depth characterization of their causes, distribution, and far-reaching effects on overall system behavior.  In high-performance computing environments, the impact of memory errors, such as bit flips, can be particularly severe, leading to inaccurate computations and compromising the integrity of scientific results, as detailed by Correia et al. (2014).
+
+\begin{table}[ht]
+\centering
+\caption{Memory Failures (RAM \& Cache)}
+\label{memory_failures}
+\resizebox{\linewidth}{!}{
+\begin{tabular}{lll}
+\toprule
+Failure Mode & Impact & Relevant Syscalls \\
+\midrule
+Bit Flip Corruptions & Random memory corruption & Modify \texttt{mmap()} pages \\
+Out of Memory (OOM) & Process killed & \texttt{brk()}, \texttt{mmap()}, \texttt{mlock()} \\
+Memory Leaks & Progressive slowdowns & \texttt{malloc()}, \texttt{free()} \\
+Heap Fragmentation & Memory allocations become slow over time & \texttt{malloc()}, \texttt{free()}, \texttt{mmap()} \\
+Stack Corruption & Causes random segmentation faults & \texttt{mprotect()}, \texttt{setrlimit(RLIMIT\_STACK)} \\
+Swap Storm (Thrashing) & System constantly swaps memory to disk & \texttt{swapoff()}, \texttt{swapon()}, \texttt{madvise()} \\
+Page Table Corruption & Random invalid memory accesses & \texttt{getpagesize()}, \texttt{mprotect()}, \texttt{mlock()} \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+\subsection{CPU \& Scheduling Failures}
+
+CPU and scheduling issues are simulated using faults such as \texttt{nanosleep\_throttle}, which delays scheduling operations by forcing \texttt{nanosleep()} to return \texttt{-EIO}, and \texttt{nanosleep\_interrupt}, which returns \texttt{-EINTR}. We also inject failures in \texttt{fork()} and \texttt{clock\_gettime()} using \texttt{fork\_fail} and \texttt{clock\_drift}, respectively. These return realistic error codes such as \texttt{-EAGAIN} and \texttt{-EIO}, reflecting CPU load limits and time synchronization issues.
+
+
+\begin{table}[ht]
+\centering
+\caption{CPU Failures (Compute \& Scheduling)}
+\label{cpu_failures}
+\resizebox{\linewidth}{!}{
+\begin{tabular}{lll}
+\toprule
+Failure Mode & Impact & Relevant Syscalls \\
+\midrule
+High CPU Load & Starvation & \texttt{sched\_yield()}, \texttt{getrusage()} \\
+Random Crashes & Process terminates & \texttt{kill()}, \texttt{segfault()} \\
+Throttling & Execution slows & Hook \texttt{nanosleep()} to inject delays \\
+Core Starvation & CPU cores become unavailable & \texttt{sched\_setaffinity()}, \texttt{sched\_getaffinity()} \\
+Pipeline Stalls & Execution pauses randomly & \texttt{perf\_event\_open()} \\
+Clock Drift & System clock shifts unexpectedly & \texttt{clock\_gettime()}, \texttt{gettimeofday()} \\
+Instruction Set Corruption & Some instructions crash the CPU & \texttt{execve()}, \texttt{ptrace()} \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+\subsection{Network Failures}
+
+Networking faults in Khaos include \texttt{socket\_block}, which blocks new socket creation by returning \texttt{-EPERM}, and \texttt{getaddrinfo\_fail}, which simulates DNS resolution failure by injecting \texttt{-EAI\_NONAME}. These enable us to test network-facing applications under misconfiguration or degraded infrastructure conditions.
+
+
+\begin{table}[ht]
+\centering
+\caption{Network Failures (Connectivity)}
+\label{network_failures}
+\resizebox{\linewidth}{!}{
+\begin{tabular}{lll}
+\toprule
+Failure Mode & Impact & Relevant Syscalls \\
+\midrule
+Packet Loss & Some connections drop & \texttt{sendto()}, \texttt{recvfrom()} \\
+Latency Spikes & Increased response times & \texttt{connect()}, \texttt{setsockopt(SO\_RCVBUF)} \\
+Total Disconnection & No network access & \texttt{socket()}, \texttt{bind()}, \texttt{accept()} \\
+DNS Resolution Failure & Hostnames fail to resolve & \texttt{getaddrinfo()}, \texttt{res\_query()} \\
+Port Blockage & Certain ports are inaccessible & \texttt{bind()}, \texttt{listen()}, \texttt{connect()} \\
+Intermittent Network Failures & Random network cutouts & \texttt{sendto()}, \texttt{recvfrom()} \\
+Bandwidth Throttling & Slow transfer, high RTT & \texttt{setsockopt(SO\_RCVBUF, SO\_SNDBUF)}, \texttt{tc qdisc} \\
+Packet Duplication & Random duplicate packets & \texttt{sendto()}, \texttt{recvfrom()} \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+\subsection{Power \& Hardware Failures}
+
+While we do not yet simulate full machine shutdowns, we mimic device-level failures. For example, \texttt{ioctl\_fail} simulates failure in device communication (e.g., fan control or GPU ioctl) by injecting \texttt{-ENOTTY}. These faults help test system services that rely on low-level hardware management.
+
+
+\begin{table}[ht]
+\centering
+\caption{Power \& Hardware Failures}
+\label{power_hardware_failures}
+\resizebox{\linewidth}{!}{
+\begin{tabular}{lll}
+\toprule
+Failure Mode & Impact & Relevant Syscalls \\
+\midrule
+Power Loss & Entire machine shutdown & \texttt{reboot()}, \texttt{poweroff()} \\
+CPU Voltage Instability & Unpredictable slowdowns & \texttt{perf\_event\_open()} \\
+Temperature Overload & Thermal throttling activates & \texttt{perf\_event\_open()}, \texttt{sched\_yield()} \\
+Battery Backup Failure & Battery fault causes shutdown & \texttt{reboot()}, \texttt{poweroff()} \\
+Fan Failure & Overheating, instability & \texttt{ioctl()} (fan speed control) \\
+Memory Bus Errors & Random memory corruption & \texttt{mmap()}, \texttt{memcpy()} \\
+Peripheral Bus Failure & USB/PCI devices disappear & \texttt{ioctl()}, \texttt{read()}, \texttt{write()} \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+\subsection{Kernel and OS-Level Failures}
+
+To simulate core operating system pressure, we implemented faults like \texttt{fork\_fail}, which returns \texttt{-EAGAIN} to mimic process table exhaustion. Similarly, \texttt{dup\_fail} forces \texttt{dup()} to return \texttt{-EMFILE}, representing file descriptor exhaustion. These tests are critical for uncovering bugs in applications that assume unlimited OS resources.
+
+
+\begin{table}[ht]
+\centering
+\caption{Kernel and OS-Level Failures}
+\label{kernel_os_failures}
+\resizebox{\linewidth}{!}{
+\begin{tabular}{lll}
+\toprule
+Failure Mode & Impact & Relevant Syscalls \\
+\midrule
+Kernel Panic Simulation & System halts forcibly & \texttt{sysctl()} (trigger kernel panic) \\
+Process Table Exhaustion & No new processes spawn & \texttt{fork()}, \texttt{execve()}, \texttt{clone()} \\
+File Descriptor Leak & Can’t open new files/sockets & \texttt{open()}, \texttt{socket()}, \texttt{dup()} \\
+Syscall Hook Failure & Unexpected syscall results & Modify \texttt{bpf\_trace\_printk()} logs \\
+Deadlock Simulation & Processes mutually block & \texttt{flock()}, \texttt{pthread\_mutex\_lock()} \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+\subsection{Virtualization \& Container Failures}
+
+Khaos also supports fault injection for container runtimes and isolation features. For example, \texttt{setns\_fail} and \texttt{prlimit\_fail} both return \texttt{-EPERM}, preventing namespace switches or cgroup updates. These simulate permission errors that may arise due to container misconfiguration or platform policy enforcement.
+
+
+\begin{table}[ht]
+\centering
+\caption{Virtualization \& Container Failures}
+\label{virtualization_container_failures}
+\resizebox{\linewidth}{!}{
+\begin{tabular}{lll}
+\toprule
+Failure Mode & Impact & Relevant Syscalls \\
+\midrule
+Namespace Isolation Failure & Containers see each other & \texttt{setns()}, \texttt{unshare()} \\
+Cgroup Throttling & CPU/memory capped & \texttt{prlimit()}, \texttt{setrlimit()} \\
+Container Crash Loop & Restarts unexpectedly & \texttt{kill()}, \texttt{prctl(PR\_SET\_PDEATHSIG)} \\
+OverlayFS Corruption & Filesystem becomes read-only & \texttt{mount()}, \texttt{umount()}, \texttt{unlink()} \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+
+
+\section{Implementation}
+The implementation of Khaos is remarkably simple. For a given fault that we want to inject, we first identify the relevant syscall to use for fault injection. Once the syscall is identified, we consult the man pages to find the proper error code we would like to return. Then, we implement an eBPF program using \texttt{override\_return} to return the targeted error code to simulate a given hardware failure.
+
+To illustrate how easy it is to implement a new fault in Khaos, the following template shows a minimal eBPF program that injects a hardware-like failure by overriding the return value of a syscall:
+
+\begin{lstlisting}[language=C,caption={Minimal eBPF template for injecting syscall-level faults},label={lst:fault_template}]
+#include <linux/bpf.h>
+#include <linux/ptrace.h>
+#include <bpf/bpf_helpers.h>
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __type(key, int);
+    __type(value, unsigned char);
+    __uint(max_entries, 256);
+} pid_map SEC(".maps");
+
+SEC("kprobe/{syscall}")
+int {fault_name}(struct pt_regs *ctx) {
+    int pid = bpf_get_current_pid_tgid() & 0xffffffff;
+    if (!bpf_map_lookup_elem(&pid_map, &pid))
+        return 0;
+
+    return -{error_code};
+}
+
+char LICENSE[] SEC("license") = "GPL";
+\end{lstlisting}
+
+This snippet shows that defining a new fault is often as simple as identifying the correct syscall and return code, then filling in the corresponding fields in the template: \texttt{\{syscall\}}, \texttt{\{fault\_name\}}, and \texttt{\{error\_code\}}.
+
+
+To date, we have implemented the following faults:
+
+\begin{table}[ht]
+\centering
+\caption{Implemented Fault Injection Programs in Khaos, Grouped by Subsystem}
+\label{tab:categorized_faults}
+\resizebox{\linewidth}{!}{
+\begin{tabular}{l|l|l|l}
+\toprule
+\textbf{Category} & \textbf{Fault Name} & \textbf{Syscall Hook} & \textbf{Error Code} \\
+\midrule
+\multirow{6}{*}{\textbf{I/O Failures}} 
+    & \texttt{read\_error}         & \texttt{read}         & \texttt{-EIO (-5)} \\
+    & \texttt{write\_error}        & \texttt{write}        & \texttt{-ENOSPC (-28)} \\
+    & \texttt{fsync\_error}        & \texttt{fsync}        & \texttt{-EIO (-5)} \\
+    & \texttt{open\_error}         & \texttt{openat}       & \texttt{-EACCES (-13)} \\
+    & \texttt{close\_fail}         & \texttt{close}        & \texttt{-EBADF (-9)} \\
+    & \texttt{dup\_fail}           & \texttt{dup}          & \texttt{-EMFILE (-24)} \\
+\midrule
+\multirow{7}{*}{\textbf{Memory Failures}} 
+    & \texttt{mmap\_fail}          & \texttt{mmap}         & \texttt{-ENOMEM (-12)} \\
+    & \texttt{mmap\_oom}           & \texttt{mmap}         & \texttt{-ENOMEM (-12)} \\
+    & \texttt{brk\_fail}           & \texttt{brk}          & \texttt{-ENOMEM (-12)} \\
+    & \texttt{mlock\_fail}         & \texttt{mlock}        & \texttt{-ENOMEM (-12)} \\
+    & \texttt{cuda\_malloc\_fail}  & \texttt{ioctl}        & \texttt{-ENOMEM (-12)} \\
+    & \texttt{getrandom\_fail}     & \texttt{getrandom}    & \texttt{-EAGAIN (-11)} \\
+    & \texttt{getaddrinfo\_fail}   & \texttt{getaddrinfo}  & \texttt{-EAI\_NONAME (-2)} \\
+\midrule
+\multirow{4}{*}{\textbf{CPU \& Scheduling Failures}} 
+    & \texttt{nanosleep\_throttle} & \texttt{nanosleep}    & \texttt{-EIO (-5)} \\
+    & \texttt{nanosleep\_interrupt}& \texttt{nanosleep}    & \texttt{-EINTR (-4)} \\
+    & \texttt{fork\_fail}          & \texttt{fork}         & \texttt{-EAGAIN (-11)} \\
+    & \texttt{clock\_drift}        & \texttt{clock\_gettime}& \texttt{-EIO (-5)} \\
+\midrule
+\multirow{2}{*}{\textbf{Containerization \& Limits}} 
+    & \texttt{setns\_fail}         & \texttt{setns}        & \texttt{-EPERM (-1)} \\
+    & \texttt{prlimit\_fail}       & \texttt{prlimit64}    & \texttt{-EPERM (-1)} \\
+\midrule
+\textbf{Networking Failure} 
+    & \texttt{socket\_block}       & \texttt{socket}       & \texttt{-EPERM (-1)} \\
+\midrule
+\textbf{Device Control Failure} 
+    & \texttt{ioctl\_fail}         & \texttt{ioctl}        & \texttt{-ENOTTY (-25)} \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+
+
+
+
+\section{Evaluation}
+
+We evaluate the correctness and utility of Khaos by validating its ability to inject low-level hardware faults through system call manipulation, and observing the resulting behavior of user-space applications. Our evaluation strategy focuses on three goals: (1) verifying that the correct syscalls are intercepted, (2) ensuring the injected errors propagate as expected to user-space programs, and (3) confirming that the behavior observed mimics real-world hardware fault symptoms.
+
+\subsection{Testing Methodology}
+
+To test each fault, we implement a corresponding user-space test program in Python or C that repeatedly invokes the relevant system call (e.g., \texttt{fsync()}, \texttt{mmap()}, \texttt{ioctl()}). These programs run in an infinite loop and print output on success or failure, making it easy to observe fault injection in real time.
+
+Each test begins by recording the PID of the test program. We then launch Khaos with the appropriate fault name and target PID. For example:
+\begin{verbatim}
+$ sudo ./khaos fsync_error <PID>
+\end{verbatim}
+
+To confirm that the correct system call is being invoked, we use \texttt{strace} to trace the test program’s execution. This allows us to validate that the BPF program is attached to the intended syscall and that the call is executed by the user-space binary.
+
+Once the fault is injected, the test program begins to report failures—typically system-level \texttt{OSError} exceptions or errno-based failure codes. For instance, when the \texttt{write()} syscall is overridden to return \texttt{-ENOSPC}, Python’s \texttt{write()} raises an exception indicating that the disk is full. This matches the expected behavior in real-world disk exhaustion scenarios.
+
+\subsection{Examples}
+
+\begin{itemize}
+    \item \textbf{\texttt{fsync\_error}}: A Python program repeatedly calls \texttt{fsync()} on a file descriptor. After injecting the fault, the program throws an \texttt{OSError: [Errno 5] Input/output error}, indicating a successful simulation of a disk I/O error.
+    
+    \item \textbf{\texttt{mmap\_fail}}: A C test attempts to memory-map a file in a loop. With fault injection, \texttt{mmap()} returns \texttt{MAP\_FAILED} and \texttt{errno} is set to \texttt{ENOMEM}, mimicking a memory exhaustion fault.
+    
+    \item \textbf{\texttt{socket\_block}}: A Python script attempts to create sockets repeatedly. Upon injecting the fault, \texttt{socket()} raises an exception: \texttt{PermissionError: [Errno 1] Operation not permitted}.
+\end{itemize}
+
+\subsection{Observations}
+
+Our experiments demonstrate that Khaos reliably injects faults across a wide range of system calls. The injected errors are indistinguishable from real hardware failure symptoms from the perspective of the application. Furthermore, by targeting individual PIDs, Khaos enables safe, non-global fault testing that avoids disrupting the host system.
+
+\subsection{Limitations}
+
+While Khaos is effective at injecting faults that can be simulated via syscall return codes, it cannot currently inject more complex failure behaviors, such as partial writes, corrupted buffers, or timing-based anomalies like jitter and throttling (outside of error codes). These are noted as future work. Additionally, fault injection on certain syscalls (e.g., \texttt{brk()}, \texttt{clock\_gettime()}) is architecture-dependent and may not work uniformly across all platforms without manual adjustment of kprobe targets.
+
+The fidelity of our evaluation is also a main limitation. In order to accurately assess the fidelity of our fault injection, we will need to find real logs from systems experiencing hardware faults to compare against to accurately assess the accuracy of our chosen fault injection strategies to how a real hardware failure manifests itself in the real world.
+
+\section{Future Work}
+
+\subsection{Faults as a Service}
+We plan to develop a yaml based interface similar to Chaos Mesh \cite{chaosmesh2023} to make it easy to create chaos experiments for a fault. In this design, \textit{Khaos} would be constantly running as a service on a machine, and is able to perform fault injection on demand. The yaml interface will support features like time duration for experiments, random timing of experiments, and executing multiple experiments simultaneously.
+
+\subsection{Corruption Faults}
+Our current scope is limited purely to faults that rely on error codes due to our use of \texttt{bpf\_override\_return}. However, by leveraging kretprobes instead of kprobes we can intercept buffers in flight and perform various corruption faults to accurately simulate both CPU errors, memory corruption, and disk corruption.
+
+\subsection{GPU failures}
+GPU failures are a dominant source of reliability issues in large-scale LLM training workloads. For example, during a 54-day snapshot period in the training of LLaMA 3, Meta reported 466 job interruptions, with over 58\% of unexpected failures caused by GPU-related issues such as device resets, memory errors, or silent data corruption~\cite{grattafiori2024llama3herdmodels}. Despite extensive automation, such failures frequently result in full job restarts due to the synchronous nature of distributed training.
+
+To better evaluate and improve system resilience in these high-throughput training environments, we plan to expand our fault injection framework to include GPU-specific failure modes. This includes simulating VRAM ECC bit flips, injecting artificial latency in tensor transfer paths, and forcing errors in GPU driver ioctl operations. These faults will allow us to measure system behavior under hardware stress, identify brittle failure recovery paths, and ultimately design safer training orchestration strategies. 
+
+We also plan to integrate fault injection into end-to-end training pipelines, such as those built with DeepSpeed or Megatron-LM, to observe how different frameworks handle GPU faults under real-world workloads. We believe that these fault injection techniques could be beneficial for evaluating fault tolerance in emerging fault tolerant LLM training systems like Oobleck \cite{oobleck}.

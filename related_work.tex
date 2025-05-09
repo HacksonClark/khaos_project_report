@@ -1,4 +1,36 @@
 \section{Related Work}
 \label{sec:related_work}
 
-The related work of your project~\cite{Dijkstra:SOSP:1967}.
+A wide range of prior work in chaos engineering, system-level fault injection, and exception-handling robustness has informed the design of \textit{Khaos}.
+
+\subsection{System Call Fault Injection and Chaos Engineering}
+
+PHOEBE~\cite{Zhang2020phoebe} presents a fault injection framework that simulates realistic system call errors using eBPF to reflect failure distributions seen in production. It enables high-fidelity testing of application resilience to OS and hardware faults such as disk I/O failures, making it conceptually similar to our syscall override-based approach. However, PHOEBE does not provide a pre-determined fault library, it relies on reproducing errors it profiles from a given application.
+
+Chaos Mesh~\cite{chaosmesh2023} is a Kubernetes-native fault injection platform that can simulate network partitions, CPU and memory pressure, and pod-level failures. Although Chaos Mesh operates at the infrastructure layer rather than syscall granularity, it illustrates the value of programmable chaos experiments to proactively test failure recovery mechanisms.
+
+Netflix's Chaos Monkey and its broader Simian Army~\cite{netflixchaosmonkey} pioneered the idea of injecting infrastructure faults in production to verify system robustness. Their FIT (Failure Injection Testing) tool further supports injecting specific faults into RPC boundaries. These tools demonstrate that injected failure conditions—whether at the instance or application level—can expose brittle components in distributed systems.
+
+\subsection{Low-Level Fault Injection for Hardware Reliability}
+
+Several tools have been developed to simulate faults at the architectural or accelerator level. SASSIFI~\cite{sassifi2017} injects faults into GPU memory and register states to study resilience of CUDA kernels under transient errors, while TensorFI+~\cite{tensorfi2022} simulates memory corruption and precision degradation in deep learning models to evaluate their fault tolerance.
+
+Barletta et al.~\cite{mutiny2024} examine Kubernetes failure modes by injecting bit flips into etcd's persistent storage layer, revealing that single-bit corruptions can trigger cascading cluster-wide failures. Their findings further motivate injecting low-level faults—such as corrupted syscalls or partial I/O errors—to validate distributed system resilience.
+
+\subsection{Empirical Studies of Hardware Failures}
+
+Meta's LLaMA 3 paper~\cite{llama3herdmodels} reports that over 54 days of training with 16,000 GPUs, they encountered 466 job interruptions, of which 419 were unexpected. Among these, 58.7\% were attributed to GPU-related hardware failures such as SRAM errors, HBM corruption, or PCIe faults. These findings underscore the importance of GPU- and memory-related fault simulation, such as those performed by our ioctl- and mmap-level fault injectors.
+
+Facebook's large-scale DRAM study~\cite{facebookdramstudy} revealed that over 32\% of servers experienced at least one memory error annually. Uncorrectable memory faults, though rare, were disproportionately impactful. Our simulation of memory allocation failures (e.g., \texttt{brk()}, \texttt{mlock()}, and \texttt{mmap()} returning \texttt{ENOMEM}) provides a testbed for evaluating system behavior under such real-world failure conditions.
+
+A related study of SSD failures~\cite{facebookssdstudy} found that flash device errors correlate with usage patterns and thermal conditions. This motivates simulating disk I/O errors such as \texttt{fsync()} and \texttt{write()} returning \texttt{EIO} or \texttt{ENOSPC}, as supported in \textit{Khaos}.
+
+\subsection{Exception Handling and Software Fault Tolerance}
+
+Filibuster~\cite{filibuster2024} is a fault injection framework for microservices that simulates RPC failures and malformed responses in order to test fallback behavior. It shifts fault injection from infrastructure to the API boundary, a technique that complements our syscall-level injections in uncovering error-handling bugs.
+
+Zhang and Elbaum~\cite{zhangelbaum2012} study the prevalence of exception-handling bugs and propose amplifying unit tests by throwing exceptions at I/O or API boundaries. Our work builds on this insight by injecting system-level faults that cause real exceptions (e.g., file I/O errors), forcing error-handling code paths to activate during integration testing.
+
+\vspace{5pt}
+Collectively, these prior works affirm the utility of fault injection at multiple layers of the stack—hardware, OS, and application—to test fault tolerance. Our approach extends these efforts by providing a scalable, syscall-centric mechanism for simulating a broad taxonomy of hardware-related failures.
+

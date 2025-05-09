@@ -1,3 +1,7 @@
 \section{Conclusion}
 
-This project is awesome.
+Khaos demonstrates a practical and extensible approach to injecting realistic hardware faults at the system call level using eBPF. By overriding syscall return values, we simulate a wide range of hardware failures—from disk I/O and memory exhaustion to network disruption and container isolation faults—without modifying application or kernel code. 
+
+Our lightweight, PID-targeted fault injection design enables developers to test how their systems behave under adverse conditions that are typically difficult to reproduce. The modularity of Khaos allows new faults to be rapidly added and tested with minimal overhead.
+
+As systems scale in complexity and hardware failures remain an ever-present risk in cloud environments, tools like Khaos are essential for strengthening software resilience and reliability. We hope Khaos serves as a foundation for future work in fault-tolerant systems, hardware-aware testing pipelines, and fine-grained chaos engineering.

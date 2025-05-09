@@ -1,22 +1,41 @@
 \documentclass[sigplan,screen,10pt]{acmart}
 \settopmatter{printfolios=true,printccs=false,printacmref=false}
 \renewcommand\footnotetextcopyrightpermission[1]{}
+\usepackage{hyperref}
+\usepackage{multirow}
+\usepackage{listings}
+\usepackage{xcolor}
+\lstset{
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{blue}\ttfamily,
+  commentstyle=\color{gray}\ttfamily,
+  stringstyle=\color{orange}\ttfamily,
+  breaklines=true,
+  frame=single,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  escapeinside={(*@}{@*)}
+}
+
 
 \pagestyle{plain} 
 
 \begin{document}
 
-\title{Your Very Nice Project Title}
+\title{Halt and Catch Failure: High-Fidelity Hardware Error Simulation with Khaos}
 
-\author{Author Name, Author Name, Author Name}
+\author{Jackson Clark, Yikang Yue}
 \affiliation{
   \institution{University of Illinois at Urbana-Champaign}
 }
-\email{{netid1, netid2, netid3}@illinois.edu}
+\email{{jclark58, yikangy2}@illinois.edu}
 
 \input{abstract}
 
 \maketitle
+Halt and Catch Failure\footnote{A reference to the mythical \emph{Halt and Catch Fire}, see \href{https://en.wikipedia.org/wiki/Halt_and_Catch_Fire_(computing)}{Wikipedia}.}
+
 
 \input{introduction}
 \input{middle_sections}
