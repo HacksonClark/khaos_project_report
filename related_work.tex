@@ -9,6 +9,8 @@ PHOEBE~\cite{Zhang2020phoebe} presents a fault injection framework that simulate
 
 Chaos Mesh~\cite{chaosmesh2023} is a Kubernetes-native fault injection platform that can simulate network partitions, CPU and memory pressure, and pod-level failures. Although Chaos Mesh operates at the infrastructure layer rather than syscall granularity, it illustrates the value of programmable chaos experiments to proactively test failure recovery mechanisms.
 
+The Chaos Mesh framework also provides a service to simulate faults on a physical machine through a service called \textit{chaosd}. While \textit{chaosd} can simulate faults such as killing processes, increasing network latency, dropping packets, and corrupting packets, these faults are simulated using tools such as \textit{tc}. Although these injection mechanisms accurately produce a \textit{symptom} in the system, they do not present a root cause to the target application.
+
 Netflix's Chaos Monkey and its broader Simian Army~\cite{netflixchaosmonkey} pioneered the idea of injecting infrastructure faults in production to verify system robustness. Their FIT (Failure Injection Testing) tool further supports injecting specific faults into RPC boundaries. These tools demonstrate that injected failure conditions—whether at the instance or application level—can expose brittle components in distributed systems.
 
 \subsection{Low-Level Fault Injection for Hardware Reliability}

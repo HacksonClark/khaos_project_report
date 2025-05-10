@@ -1,14 +1,14 @@
 \section{Taxonomy}
 
-We propose the following taxonomy as the foundation of our fault injection methodology, aiming to cover each layer of the hardware stack along with common operating system and virtualization faults. For hardware failures, we categorize faults based on relevant hardware components and identify several common failure modes for each, informed by studies on data-center hardware failures~\cite{Wang2017, intel2023mca}. For kernel and virtualization-related faults, we pinpoint vulnerable and essential operating system components and define their corresponding faults. We further expand this list to incorporate other failures which we classify as either regular or critical, such as failures in networking and peripheral devices.
+We propose the following taxonomy as the foundation of our fault injection methodology, aiming to cover each layer of the hardware stack along with common operating system and virtualization faults. For hardware failures, we categorize faults based on relevant hardware components and identify several common failure modes for each, informed by studies on data center hardware failures~\cite{Wang2017, intel2023mca}. For kernel and virtualization-related failures, we pinpoint vulnerable and essential operating system components and define their corresponding faults. We further expand this list to incorporate other failures which we classify as either regular or critical, such as failures in networking and peripheral devices.
 
 Although the root causes of the aforementioned failures vary across generations and architectures of software and hardware, from an operating system perspective, they either cause unexpected behavior in the relevant subsystem, ultimately exposing issues to user-space through system calls, or result in performance degradations or inconsistencies that affect the applications in service. Following this observation, we associate each identified failure mode with a group of system calls it can potentially affect, which guide the implementation of \textit{Khaos}.
 
 \subsection{Disk Failures}
 
-Disk failures, including those rooted in hard disk drives and solid state drives, have been reported to account for more than 80\% of failures in the data-centers of Baidu Inc.~\cite{Wang2017}. A more recent white paper on JD Cloud reported that disk failures constitute 32\% of all hardware failures observed in their cloud hosts~\cite{intel2023mca}.
+Disk failures, including those rooted in hard disk drives and solid state drives, have been reported to account for more than 80\% of failures in the data centers of Baidu Inc.~\cite{Wang2017}. A more recent white paper on JD Cloud reported that disk failures constitute 32\% of all hardware failures observed in their cloud hosts~\cite{intel2023mca}.
 % Although this decline in numbers may be attributed to multiple factors, including architectural and functional differences in these data centers, variations in management and maintenance practices, discrepancies in failure collection and categorization, and advancements in storage technologies, 
-these numbers demonstrate that disk failures are, and will remain in the near future, a major source of hardware failures. With regard to the root cause, multiple disk components contribute to its failures. For example, hard disk drive failures can result from media errors like bad sectors, medium errors, and bad block table failures, leading to corruption of files or even file systems.
+These numbers demonstrate that disk failures are, and will remain in the near future, a major source of hardware failures. Regarding the root cause, multiple disk components contribute to its failures. For example, hard disk drive failures can result from read/write head malfunctions, spindle motor failures, or media errors, potentially leading to file corruption or even the degradation of entire file systems.
 
 \begin{table}[ht]
 \centering
@@ -33,11 +33,11 @@ Disk Read-Only Mode & Writes are blocked, only reads allowed & \texttt{write()},
 }
 \end{table}
 
-The identified disk failures and their impact are shown in table~\ref{disk_failures}. Among the identified disk failures, the primary impact is the failure or unexpected behavior of I/O-related system calls, including \texttt{open()}, \texttt{read()}, \texttt{write()}, and \texttt{fsync()}, etc. Additionally, these failures may lead to performance degradation, resulting in prolonged execution and slowdown of I/O system calls. Furthermore, disk failures can cause permission or access errors related to file system status and file write permissions.
+The identified disk failures and their impact are shown in table~\ref{disk_failures}. Among these failures, the primary impact is the failure or unexpected behavior of I/O-related system calls, including \texttt{open()}, \texttt{read()}, \texttt{write()}, and \texttt{fsync()}, etc. Additionally, these failures may lead to performance degradation, resulting in prolonged execution and slowdown of I/O syscalls. Furthermore, disk failures can result in permission or access errors related to file system status and file write permissions.
 
 \subsection{Memory Failures}
 
-Memory failures, encompassing both RAM and cache, represent a critical concern in data center reliability. These failures can manifest in various forms, impacting system stability and performance. A significant portion of memory errors are attributed to Dual In-line Memory Module Correctable Errors (DIMMCE) and Dual In-line Memory Module Uncorrectable Errors (DIMMUE). The criticality of these failures is underscored by research highlighting their potential to cause widespread system disruptions and data loss. For instance, Sridharan et al. (2010) discuss how hardware faults, including memory errors, can significantly compromise the reliability of cloud computing platforms. Opperman et al. (2016) further emphasize the importance of understanding memory errors by providing an in-depth characterization of their causes, distribution, and far-reaching effects on overall system behavior.  In high-performance computing environments, the impact of memory errors, such as bit flips, can be particularly severe, leading to inaccurate computations and compromising the integrity of scientific results, as detailed by Correia et al. (2014).
+Memory failures, which include both RAM and cache, represent a critical concern in data center reliability. These failures can manifest in various forms, affecting system stability and performance. A significant portion of memory errors are attributed to errors in the dual inline memory module. The criticality of these failures is underscored by research highlighting their potential to cause widespread system disruptions and data loss. For example, Sridharan \textit{et al.}~\cite{sridharan2015mem} emphasize the importance of understanding memory errors by providing an in-depth characterization of their causes, distribution, and far-reaching effects on overall system behavior. In high-performance computing environments, the impact of memory errors, such as bit flips, can be particularly severe, leading to inaccurate calculations and compromising the integrity of scientific results~\cite{utrera2018hpc}.
 
 \begin{table}[ht]
 \centering
@@ -60,9 +60,15 @@ Page Table Corruption & Random invalid memory accesses & \texttt{getpagesize()},
 }
 \end{table}
 
+The identified memory failures are shown in table~\ref{memory_failures}. From an operating system perspective, failures in the memory subsystem typically manifest as memory allocation failures, which can be simulated by returning \texttt{-ENOMEM} for relevant system calls. Additionally, another significant root cause of memory failures is bit corruption, which cannot be easily simulated by modifying system call return values and is considered for future work.
+
 \subsection{CPU \& Scheduling Failures}
 
-CPU and scheduling issues are simulated using faults such as \texttt{nanosleep\_throttle}, which delays scheduling operations by forcing \texttt{nanosleep()} to return \texttt{-EIO}, and \texttt{nanosleep\_interrupt}, which returns \texttt{-EINTR}. We also inject failures in \texttt{fork()} and \texttt{clock\_gettime()} using \texttt{fork\_fail} and \texttt{clock\_drift}, respectively. These return realistic error codes such as \texttt{-EAGAIN} and \texttt{-EIO}, reflecting CPU load limits and time synchronization issues.
+As discussed in section~\ref{sec:introduction}, though CPU-related failures are rare, they are often subtle and silent, yet inevitably become dangerous at scale. As shown in table~\ref{cpu_failures}, CPU and scheduling issues are simulated
+% using faults such as \texttt{nanosleep\_throttle}, which delays scheduling operations by forcing \texttt{nanosleep()} to return \texttt{-EIO}, and \texttt{nanosleep\_interrupt}, which returns \texttt{-EINTR}.
+by fault injections. For example, random crashes, such as unexpected process terminations, and CPU throttling, which typically causes execution to slow down, are simulated by injecting \texttt{kill()} and \texttt{nanosleep()} into the system calls of the target process, respectively.
+Additionally, failures are introduced in \texttt{fork()} via \texttt{fork\_fail} and in \texttt{clock\_gettime()} via \texttt{clock\_drift}.
+ After the fault injection, realistic error codes such as \texttt{-EAGAIN} and \texttt{-EIO} are returned, reflecting CPU load limits and time synchronization issues.
 
 
 \begin{table}[ht]
@@ -88,7 +94,7 @@ Instruction Set Corruption & Some instructions crash the CPU & \texttt{execve()}
 
 \subsection{Network Failures}
 
-Networking faults in Khaos include \texttt{socket\_block}, which blocks new socket creation by returning \texttt{-EPERM}, and \texttt{getaddrinfo\_fail}, which simulates DNS resolution failure by injecting \texttt{-EAI\_NONAME}. These enable us to test network-facing applications under misconfiguration or degraded infrastructure conditions.
+Networking faults in Khaos include \texttt{socket\_block}, which blocks the creation of new sockets by returning \texttt{-EPERM}, and \texttt{getaddrinfo\_fail}, which simulates DNS resolution failure by injecting \texttt{-EAI\_NONAME}. These enable us to test network-facing applications under misconfigurations or degraded infrastructure conditions.
 
 
 \begin{table}[ht]
@@ -165,10 +171,10 @@ Deadlock Simulation & Processes mutually block & \texttt{flock()}, \texttt{pthre
 
 \subsection{Virtualization \& Container Failures}
 
-Khaos also supports fault injection for container runtimes and isolation features. For example, \texttt{setns\_fail} and \texttt{prlimit\_fail} both return \texttt{-EPERM}, preventing namespace switches or cgroup updates. These simulate permission errors that may arise due to container misconfiguration or platform policy enforcement.
+Khaos also supports fault injection for container runtimes and isolation features by rejecting normal operations. For example, \texttt{setns\_fail} and \texttt{prlimit\_fail} both return \texttt{-EPERM}, preventing namespace switches or cgroup updates. These simulate permission errors that may arise due to container misconfiguration or platform policy enforcement.
 
 
-\begin{table}[ht]
+\begin{table}[H]
 \centering
 \caption{Virtualization \& Container Failures}
 \label{virtualization_container_failures}
@@ -268,10 +274,6 @@ To date, we have implemented the following faults:
 }
 \end{table}
 
-
-
-
-
 \section{Evaluation}
 
 We evaluate the correctness and utility of Khaos by validating its ability to inject low-level hardware faults through system call manipulation, and observing the resulting behavior of user-space applications. Our evaluation strategy focuses on three goals: (1) verifying that the correct syscalls are intercepted, (2) ensuring the injected errors propagate as expected to user-space programs, and (3) confirming that the behavior observed mimics real-world hardware fault symptoms.
@@ -292,11 +294,11 @@ Once the fault is injected, the test program begins to report failures—typical
 \subsection{Examples}
 
 \begin{itemize}
-    \item \textbf{\texttt{fsync\_error}}: A Python program repeatedly calls \texttt{fsync()} on a file descriptor. After injecting the fault, the program throws an \texttt{OSError: [Errno 5] Input/output error}, indicating a successful simulation of a disk I/O error.
+    \item \textbf{\textit{fsync\_error}}: A tset program repeatedly calls \texttt{fsync()} on a file descriptor. After injecting the fault, the program throws an \texttt{OSError: [Errno 5] Input/output error}, indicating a successful simulation of a disk I/O error.
     
-    \item \textbf{\texttt{mmap\_fail}}: A C test attempts to memory-map a file in a loop. With fault injection, \texttt{mmap()} returns \texttt{MAP\_FAILED} and \texttt{errno} is set to \texttt{ENOMEM}, mimicking a memory exhaustion fault.
+    \item \textbf{\textit{mmap\_fail}}: A C test attempts to memory-map a file in a loop. With fault injection, \texttt{mmap()} returns \texttt{MAP\_FAILED} and \texttt{errno} is set to \texttt{ENOMEM}, mimicking a memory exhaustion fault.
     
-    \item \textbf{\texttt{socket\_block}}: A Python script attempts to create sockets repeatedly. Upon injecting the fault, \texttt{socket()} raises an exception: \texttt{PermissionError: [Errno 1] Operation not permitted}.
+    \item \textbf{\textit{socket\_block}}: A Python script attempts to create sockets repeatedly. Upon injecting the fault, \texttt{socket()} raises an exception: \textit{PermissionError: [Errno 1] Operation not permitted}.
 \end{itemize}
 
 \subsection{Observations}

@@ -184,3 +184,32 @@ Distributed Systems}",
   url = {https://blog.westerndigital.com/a-balancing-act-hdds-and-ssds-in-modern-data-centers/},
   urldate = {2025-05-07}
 }
+
+@inproceedings{sridharan2015mem,
+author = {Sridharan, Vilas and DeBardeleben, Nathan and Blanchard, Sean and Ferreira, Kurt B. and Stearley, Jon and Shalf, John and Gurumurthi, Sudhanva},
+title = {Memory Errors in Modern Systems: The Good, The Bad, and The Ugly},
+year = {2015},
+isbn = {9781450328357},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/2694344.2694348},
+doi = {10.1145/2694344.2694348},
+abstract = {Several recent publications have shown that hardware faults in the memory subsystem are commonplace. These faults are predicted to become more frequent in future systems that contain orders of magnitude more DRAM and SRAM than found in current memory subsystems. These memory subsystems will need to provide resilience techniques to tolerate these faults when deployed in high-performance computing systems and data centers containing tens of thousands of nodes. Therefore, it is critical to understand the efficacy of current hardware resilience techniques to determine whether they will be suitable for future systems. In this paper, we present a study of DRAM and SRAM faults and errors from the field. We use data from two leadership-class high-performance computer systems to analyze the reliability impact of hardware resilience schemes that are deployed in current systems. Our study has several key findings about the efficacy of many currently deployed reliability techniques such as DRAM ECC, DDR address/command parity, and SRAM ECC and parity. We also perform a methodological study, and find that counting errors instead of faults, a common practice among researchers and data center operators, can lead to incorrect conclusions about system reliability. Finally, we use our data to project the needs of future large-scale systems. We find that SRAM faults are unlikely to pose a significantly larger reliability threat in the future, while DRAM faults will be a major concern and stronger DRAM resilience schemes will be needed to maintain acceptable failure rates similar to those found on today's systems.},
+booktitle = {Proceedings of the Twentieth International Conference on Architectural Support for Programming Languages and Operating Systems},
+pages = {297–310},
+numpages = {14},
+keywords = {reliability, large-scale systems, field studies},
+location = {Istanbul, Turkey},
+series = {ASPLOS '15}
+}
+
+@INPROCEEDINGS{utrera2018hpc,
+  author={Utrera, Gladys and Gil, Marisa and Martorell, Xavier},
+  booktitle={2018 26th Euromicro International Conference on Parallel, Distributed and Network-based Processing (PDP)}, 
+  title={Analysis of the Impact Factors on Data Error Propagation in HPC Applications}, 
+  year={2018},
+  volume={},
+  number={},
+  pages={546-549},
+  keywords={Benchmark testing;Software;Libraries;Toy manufacturing industry;Runtime;Sparse matrices;Computer architecture;data error propagation;reliability;MPI resilience},
+  doi={10.1109/PDP2018.2018.00092}}
