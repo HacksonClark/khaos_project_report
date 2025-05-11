@@ -225,10 +225,8 @@ char LICENSE[] SEC("license") = "GPL";
 
 This snippet shows that defining a new fault is often as simple as identifying the correct syscall and return code, then filling in the corresponding fields in the template: \texttt{\{syscall\}}, \texttt{\{fault\_name\}}, and \texttt{\{error\_code\}}.
 
-
-To date, we have implemented the following faults:
-
 \begin{table}[ht]
+\label{tab:implemented_faults}
 \centering
 \caption{Implemented Fault Injection Programs in Khaos, Grouped by Subsystem}
 \label{tab:categorized_faults}
